@@ -8,6 +8,8 @@ import tempfile
 
 from rich.console import Console
 
+from party import cmd_party
+
 console = Console(highlight=False)
 console_stderr = Console(file=sys.stderr, highlight=False)
 
@@ -471,7 +473,7 @@ def cmd_install(args):
     if not quiet:
         print(f"Installing aliases from {REPO_URL}", file=sys.stderr)
 
-    commands = ["fff", "pff", "ms"]
+    commands = ["fff", "pff", "ms", "party"]
     for cmd in commands:
         alias = f"!uvx --from {REPO_URL} skeit {cmd}"
         result = run(["git", "config", "--global", f"alias.{cmd}", alias])
@@ -528,6 +530,64 @@ def main():
         help="abort pending merge and detach worktree",
     )
     ms_parser.set_defaults(func=cmd_ms)
+
+    party_parser = subparsers.add_parser(
+        "party", help="party mode for merging multiple branches", parents=[common]
+    )
+    party_sub = party_parser.add_subparsers(dest="party_command", required=True)
+
+    party_start = party_sub.add_parser(
+        "start", help="start a new party", parents=[common]
+    )
+    party_start.add_argument("name", help="name for the party")
+    party_start.add_argument(
+        "branches", nargs="*", help="additional branches to include"
+    )
+    party_start.set_defaults(func=cmd_party)
+
+    party_add = party_sub.add_parser(
+        "add", help="add a branch to the party", parents=[common]
+    )
+    party_add.add_argument("branch", help="branch to add")
+    party_add.set_defaults(func=cmd_party)
+
+    party_default = party_sub.add_parser(
+        "default", help="set the default branch for the party", parents=[common]
+    )
+    party_default.add_argument("branch", help="branch to set as default")
+    party_default.set_defaults(func=cmd_party)
+
+    party_move = party_sub.add_parser(
+        "move", help="move a commit from merged view to a branch", parents=[common]
+    )
+    party_move.add_argument("commit", help="commit hash to move")
+    party_move.add_argument("branch", help="target branch")
+    party_move.set_defaults(func=cmd_party)
+
+    party_sync = party_sub.add_parser(
+        "sync", help="sync the merged view with party branches", parents=[common]
+    )
+    party_sync.set_defaults(func=cmd_party)
+
+    party_status = party_sub.add_parser(
+        "status", help="show party status", parents=[common]
+    )
+    party_status.set_defaults(func=cmd_party)
+
+    party_finish = party_sub.add_parser(
+        "finish", help="finish the party", parents=[common]
+    )
+    party_finish.set_defaults(func=cmd_party)
+
+    party_continue = party_sub.add_parser(
+        "continue", help="continue after resolving conflicts", parents=[common]
+    )
+    party_continue.set_defaults(func=cmd_party)
+
+    party_abort = party_sub.add_parser(
+        "abort", help="abort pending operation", parents=[common]
+    )
+    party_abort.set_defaults(func=cmd_party)
 
     args = parser.parse_args()
     return args.func(args)
