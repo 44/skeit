@@ -216,7 +216,8 @@ def cmd_ms(args):
         )
         return 1
 
-    worktree_path = tempfile.mkdtemp(prefix=f"chest-ms-{branch}-")
+    safe_branch = branch.replace("/", "-")
+    worktree_path = tempfile.mkdtemp(prefix=f"chest-ms-{safe_branch}-")
 
     if not quiet:
         print(f"Creating worktree at {worktree_path}...", file=sys.stderr)
