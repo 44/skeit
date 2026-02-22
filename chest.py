@@ -64,6 +64,18 @@ def fast_forward(branch, upstream):
         return run(["git", "fetch", ".", upstream + ":" + branch])
 
 
+def get_repo_root():
+    result = run(["git", "rev-parse", "--show-toplevel"])
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def get_worktree_parent_dir():
+    repo_root = get_repo_root()
+    if repo_root:
+        return os.path.dirname(repo_root)
+    return tempfile.gettempdir()
+
+
 def get_current_branch():
     result = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     return result.stdout.strip() if result.returncode == 0 else None
@@ -134,10 +146,11 @@ def find_ms_worktree(branch):
 
 
 def find_pending_ms_worktree():
-    tmpdir = tempfile.gettempdir()
+    parent_dir = get_worktree_parent_dir()
     for wt in get_worktrees():
         path = wt.get("path", "")
-        if path.startswith(tmpdir) and "chest-ms-" in path:
+        expected_prefix = os.path.join(parent_dir, ".chest-ms-")
+        if path.startswith(expected_prefix):
             if is_merge_in_progress(path):
                 branch = wt.get("branch", "")
                 if branch.startswith("refs/heads/"):
@@ -217,7 +230,9 @@ def cmd_ms(args):
         return 1
 
     safe_branch = branch.replace("/", "-")
-    worktree_path = tempfile.mkdtemp(prefix=f"chest-ms-{safe_branch}-")
+    parent_dir = get_worktree_parent_dir()
+    worktree_path = os.path.join(parent_dir, f".chest-ms-{safe_branch}")
+    os.makedirs(worktree_path, exist_ok=True)
 
     if not quiet:
         print(f"Creating worktree at {worktree_path}...", file=sys.stderr)
