@@ -367,12 +367,14 @@ def cmd_ms_abort(quiet):
     )
 
     if not quiet:
-        print("Removing worktree...", file=sys.stderr)
+        print("Detaching worktree...", file=sys.stderr)
 
-    result = run(["git", "worktree", "remove", worktree_path])
-    if result.returncode != 0:
-        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
-        return 1
+    subprocess.run(
+        ["git", "checkout", "--detach", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
 
     print("Aborted.", file=sys.stderr)
     return 0
@@ -523,7 +525,7 @@ def main():
     ms_parser.add_argument(
         "--abort",
         action="store_true",
-        help="abort pending merge and remove worktree",
+        help="abort pending merge and detach worktree",
     )
     ms_parser.set_defaults(func=cmd_ms)
 
