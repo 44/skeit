@@ -137,6 +137,45 @@ def cmd_pff(args):
     return 0
 
 
+def get_origin_url():
+    result = run(["git", "remote", "get-url", "origin"])
+    if result.returncode != 0:
+        return None
+    url = result.stdout.strip()
+    if url.startswith("git@"):
+        url = url.replace(":", "/", 1).replace("git@", "https://")
+    if url.endswith(".git"):
+        url = url[:-4]
+    return f"git+{url}"
+
+
+def cmd_install(args):
+    quiet = args.quiet
+
+    url = get_origin_url()
+    if not url:
+        print("No origin remote found", file=sys.stderr)
+        return 1
+
+    if not quiet:
+        print(f"Installing aliases from {url}", file=sys.stderr)
+
+    commands = ["fff", "pff"]
+    for cmd in commands:
+        alias = f"!uvx --from {url} chest {cmd}"
+        result = run(["git", "config", "--global", f"alias.{cmd}", alias])
+        if result.returncode != 0:
+            print(
+                f"Failed to install alias.{cmd}: {result.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return 1
+        if not quiet:
+            print(f"Installed: git {cmd}", file=sys.stderr)
+
+    return 0
+
+
 def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
@@ -155,6 +194,11 @@ def main():
         "pff", help="push local branches ahead of upstream", parents=[common]
     )
     pff_parser.set_defaults(func=cmd_pff)
+
+    install_parser = subparsers.add_parser(
+        "install", help="install git aliases globally via uvx", parents=[common]
+    )
+    install_parser.set_defaults(func=cmd_install)
 
     args = parser.parse_args()
     return args.func(args)
