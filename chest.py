@@ -105,6 +105,39 @@ def cmd_fff(args):
     return 0
 
 
+def cmd_pff(args):
+    quiet = args.quiet
+
+    branches = get_local_branches()
+
+    if not branches:
+        print("No local branches with upstream configured", file=sys.stderr)
+        return 0
+
+    updated = 0
+    for branch, upstream in branches:
+        ahead, behind = get_ahead_behind(branch, upstream)
+        if ahead > 0 and behind == 0:
+            remote = upstream.split("/", 1)[0] if "/" in upstream else None
+            if not remote:
+                continue
+            result = run(["git", "push", remote, branch])
+            if result.returncode == 0:
+                print(f"{branch} {upstream}: pushed {format_status(ahead, behind)}")
+                updated += 1
+            else:
+                print(
+                    f"{branch} {upstream}: error {result.stderr.strip()}",
+                    file=sys.stderr,
+                )
+        elif ahead > 0 or behind > 0:
+            print(f"{branch} {upstream}: skipped {format_status(ahead, behind)}")
+
+    if not quiet:
+        print(f"\nDone. Pushed {updated} branch(es)", file=sys.stderr)
+    return 0
+
+
 def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
@@ -118,6 +151,11 @@ def main():
         "fff", help="fetch and fast-forward local branches", parents=[common]
     )
     fff_parser.set_defaults(func=cmd_fff)
+
+    pff_parser = subparsers.add_parser(
+        "pff", help="push local branches ahead of upstream", parents=[common]
+    )
+    pff_parser.set_defaults(func=cmd_pff)
 
     args = parser.parse_args()
     return args.func(args)
