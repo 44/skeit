@@ -2,8 +2,10 @@
 """chest: git helper tools"""
 
 import argparse
+import os
 import subprocess
 import sys
+import tempfile
 
 from rich.console import Console
 
@@ -65,6 +67,201 @@ def fast_forward(branch, upstream):
 def get_current_branch():
     result = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def has_uncommitted_changes():
+    result = run(["git", "status", "--porcelain"])
+    if result.returncode != 0:
+        return True
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+        status = line[:2]
+        if status.strip() and not status.startswith("?"):
+            return True
+    return False
+
+
+def get_default_branch():
+    result = run(["git", "symbolic-ref", "refs/remotes/origin/HEAD"])
+    if result.returncode == 0:
+        ref = result.stdout.strip()
+        return ref.replace("refs/remotes/origin/", "")
+    for branch in ["main", "master"]:
+        result = run(["git", "rev-parse", "--verify", f"refs/heads/{branch}"])
+        if result.returncode == 0:
+            return branch
+    return None
+
+
+def get_worktrees():
+    result = run(["git", "worktree", "list", "--porcelain"])
+    if result.returncode != 0:
+        return []
+    worktrees = []
+    current = {}
+    for line in result.stdout.strip().split("\n"):
+        if line.startswith("worktree "):
+            if current:
+                worktrees.append(current)
+            current = {"path": line.split(" ", 1)[1]}
+        elif line.startswith("HEAD "):
+            current["head"] = line.split(" ", 1)[1]
+        elif line.startswith("branch "):
+            current["branch"] = line.split(" ", 1)[1]
+    if current:
+        worktrees.append(current)
+    return worktrees
+
+
+def find_ms_worktree(branch):
+    for wt in get_worktrees():
+        if wt.get("branch") == f"refs/heads/{branch}":
+            return wt
+    return None
+
+
+def is_merge_in_progress(worktree_path):
+    merge_head = os.path.join(worktree_path, ".git", "MERGE_HEAD")
+    if os.path.exists(merge_head):
+        return True
+    return False
+
+
+def cmd_ms(args):
+    quiet = args.quiet
+    continue_merge = args.cont
+    branch = args.branch
+
+    if continue_merge:
+        if not branch:
+            print("Error: branch name required with --continue", file=sys.stderr)
+            return 1
+        return cmd_ms_continue(branch, quiet)
+
+    if not branch:
+        print("Error: branch name required", file=sys.stderr)
+        return 1
+
+    if has_uncommitted_changes():
+        print(
+            "Error: uncommitted changes detected. Commit or stash first.",
+            file=sys.stderr,
+        )
+        return 1
+
+    default_branch = get_default_branch()
+    if not default_branch:
+        print(
+            "Error: could not determine default branch (main/master)", file=sys.stderr
+        )
+        return 1
+
+    current = get_current_branch()
+    if current == branch:
+        print(f"Error: already on branch '{branch}'", file=sys.stderr)
+        return 1
+
+    result = run(["git", "rev-parse", "--verify", f"refs/heads/{branch}"])
+    if result.returncode != 0:
+        print(f"Error: branch '{branch}' does not exist", file=sys.stderr)
+        return 1
+
+    existing_wt = find_ms_worktree(branch)
+    if existing_wt:
+        print(
+            f"Error: worktree already exists for '{branch}' at {existing_wt['path']}",
+            file=sys.stderr,
+        )
+        return 1
+
+    worktree_path = tempfile.mkdtemp(prefix=f"chest-ms-{branch}-")
+
+    if not quiet:
+        print(f"Creating worktree at {worktree_path}...", file=sys.stderr)
+
+    result = run(["git", "worktree", "add", worktree_path, branch])
+    if result.returncode != 0:
+        print(f"Error creating worktree: {result.stderr.strip()}", file=sys.stderr)
+        os.rmdir(worktree_path)
+        return 1
+
+    if not quiet:
+        print(f"Merging {default_branch} into {branch}...", file=sys.stderr)
+
+    result = subprocess.run(
+        ["git", "merge", default_branch],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print("[red]Merge conflict detected[/red]", file=sys.stderr)
+        print(f"Worktree left at: {worktree_path}", file=sys.stderr)
+        print(
+            f"Resolve conflicts, then run: chest ms --continue {branch}",
+            file=sys.stderr,
+        )
+        return 1
+
+    result = run(["git", "worktree", "remove", worktree_path])
+    if result.returncode != 0:
+        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    result = run(["git", "checkout", branch])
+    if result.returncode != 0:
+        print(f"Error switching to branch: {result.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    console.print(f"[green]Switched to refreshed branch '{branch}'[/green]")
+    return 0
+
+
+def cmd_ms_continue(branch, quiet):
+    worktree = find_ms_worktree(branch)
+    if not worktree:
+        print(f"Error: no worktree found for branch '{branch}'", file=sys.stderr)
+        return 1
+
+    worktree_path = worktree["path"]
+
+    if not is_merge_in_progress(worktree_path):
+        result = run(["git", "-C", worktree_path, "rev-parse", "--verify", "HEAD"])
+        if result.returncode != 0:
+            print("Error: worktree in unexpected state", file=sys.stderr)
+            return 1
+
+    result = subprocess.run(
+        ["git", "commit", "--no-edit"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        if "nothing to commit" in result.stdout or "nothing to commit" in result.stderr:
+            pass
+        else:
+            print(f"Error committing merge: {result.stderr.strip()}", file=sys.stderr)
+            return 1
+
+    if not quiet:
+        print("Removing worktree...", file=sys.stderr)
+
+    result = run(["git", "worktree", "remove", worktree_path])
+    if result.returncode != 0:
+        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    result = run(["git", "checkout", branch])
+    if result.returncode != 0:
+        print(f"Error switching to branch: {result.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    console.print(f"[green]Switched to refreshed branch '{branch}'[/green]")
+    return 0
 
 
 def cmd_fff(args):
@@ -158,7 +355,7 @@ def cmd_install(args):
     if not quiet:
         print(f"Installing aliases from {REPO_URL}", file=sys.stderr)
 
-    commands = ["fff", "pff"]
+    commands = ["fff", "pff", "ms"]
     for cmd in commands:
         alias = f"!uvx --from {REPO_URL} chest {cmd}"
         result = run(["git", "config", "--global", f"alias.{cmd}", alias])
@@ -197,6 +394,19 @@ def main():
         "install", help="install git aliases globally via uvx", parents=[common]
     )
     install_parser.set_defaults(func=cmd_install)
+
+    ms_parser = subparsers.add_parser(
+        "ms", help="merge and switch branch via worktree", parents=[common]
+    )
+    ms_parser.add_argument("branch", nargs="?", help="branch to merge and switch to")
+    ms_parser.add_argument(
+        "-c",
+        "--continue",
+        dest="cont",
+        action="store_true",
+        help="continue after resolving conflicts",
+    )
+    ms_parser.set_defaults(func=cmd_ms)
 
     args = parser.parse_args()
     return args.func(args)
