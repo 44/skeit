@@ -3,7 +3,7 @@ name = "chest"
 version = "0.1.0"
 description = "Git helper tools"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["rich"]
 
 [project.scripts]
 chest = "chest:main"

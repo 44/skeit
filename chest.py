@@ -5,6 +5,10 @@ import argparse
 import subprocess
 import sys
 
+from rich.console import Console
+
+console = Console()
+
 
 def run(cmd, capture=True):
     result = subprocess.run(cmd, capture_output=capture, text=True)
@@ -45,9 +49,9 @@ def get_ahead_behind(branch, upstream):
 
 
 def format_status(ahead, behind):
-    parts = [f"ahead:{ahead}"]
+    parts = [f"[green]ahead:{ahead}[/green]"]
     if behind > 0:
-        parts.append(f"behind:{behind}")
+        parts.append(f"[red]behind:{behind}[/red]")
     return " ".join(parts)
 
 
@@ -89,7 +93,9 @@ def cmd_fff(args):
         if behind > 0 and can_fast_forward(branch, upstream):
             result = fast_forward(branch, upstream)
             if result.returncode == 0:
-                print(f"{branch} {upstream}: merged {format_status(ahead, behind)}")
+                console.print(
+                    f"{branch} {upstream}: [green]merged[/green] {format_status(ahead, behind)}"
+                )
                 updated += 1
             else:
                 print(
@@ -97,7 +103,9 @@ def cmd_fff(args):
                     file=sys.stderr,
                 )
         elif ahead > 0 or behind > 0:
-            print(f"{branch} {upstream}: skipped {format_status(ahead, behind)}")
+            console.print(
+                f"{branch} {upstream}: [red]skipped[/red] {format_status(ahead, behind)}"
+            )
 
     if not quiet:
         print(f"\nDone. Updated {updated} branch(es)", file=sys.stderr)
@@ -122,7 +130,9 @@ def cmd_pff(args):
                 continue
             result = run(["git", "push", remote, branch])
             if result.returncode == 0:
-                print(f"{branch} {upstream}: pushed {format_status(ahead, behind)}")
+                console.print(
+                    f"{branch} {upstream}: [green]pushed[/green] {format_status(ahead, behind)}"
+                )
                 updated += 1
             else:
                 print(
@@ -130,7 +140,9 @@ def cmd_pff(args):
                     file=sys.stderr,
                 )
         elif ahead > 0 or behind > 0:
-            print(f"{branch} {upstream}: skipped {format_status(ahead, behind)}")
+            console.print(
+                f"{branch} {upstream}: [red]skipped[/red] {format_status(ahead, behind)}"
+            )
 
     if not quiet:
         print(f"\nDone. Pushed {updated} branch(es)", file=sys.stderr)
