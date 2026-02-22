@@ -137,32 +137,18 @@ def cmd_pff(args):
     return 0
 
 
-def get_origin_url():
-    result = run(["git", "remote", "get-url", "origin"])
-    if result.returncode != 0:
-        return None
-    url = result.stdout.strip()
-    if url.startswith("git@"):
-        url = url.replace(":", "/", 1).replace("git@", "https://")
-    if url.endswith(".git"):
-        url = url[:-4]
-    return f"git+{url}"
+REPO_URL = "git+https://github.com/44/chest"
 
 
 def cmd_install(args):
     quiet = args.quiet
 
-    url = get_origin_url()
-    if not url:
-        print("No origin remote found", file=sys.stderr)
-        return 1
-
     if not quiet:
-        print(f"Installing aliases from {url}", file=sys.stderr)
+        print(f"Installing aliases from {REPO_URL}", file=sys.stderr)
 
     commands = ["fff", "pff"]
     for cmd in commands:
-        alias = f"!uvx --from {url} chest {cmd}"
+        alias = f"!uvx --from {REPO_URL} chest {cmd}"
         result = run(["git", "config", "--global", f"alias.{cmd}", alias])
         if result.returncode != 0:
             print(
