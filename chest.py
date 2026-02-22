@@ -49,9 +49,9 @@ def get_ahead_behind(branch, upstream):
 
 
 def format_status(ahead, behind):
-    parts = [f"[green]ahead:{ahead}[/green]"]
+    parts = [f"ahead:[green]{ahead}[/green]"]
     if behind > 0:
-        parts.append(f"[red]behind:{behind}[/red]")
+        parts.append(f"behind:[red]{behind}[/red]")
     return " ".join(parts)
 
 
