@@ -69,6 +69,13 @@ def get_repo_root():
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def get_repo_name():
+    repo_root = get_repo_root()
+    if repo_root:
+        return os.path.basename(repo_root)
+    return "repo"
+
+
 def get_worktree_parent_dir():
     repo_root = get_repo_root()
     if repo_root:
@@ -147,9 +154,10 @@ def find_ms_worktree(branch):
 
 def find_pending_ms_worktree():
     parent_dir = get_worktree_parent_dir()
+    repo_name = get_repo_name()
+    expected_prefix = os.path.join(parent_dir, f".{repo_name}-")
     for wt in get_worktrees():
         path = wt.get("path", "")
-        expected_prefix = os.path.join(parent_dir, ".chest-ms-")
         if path.startswith(expected_prefix):
             if is_merge_in_progress(path):
                 branch = wt.get("branch", "")
@@ -231,7 +239,8 @@ def cmd_ms(args):
 
     safe_branch = branch.replace("/", "-")
     parent_dir = get_worktree_parent_dir()
-    worktree_path = os.path.join(parent_dir, f".chest-ms-{safe_branch}")
+    repo_name = get_repo_name()
+    worktree_path = os.path.join(parent_dir, f".{repo_name}-{safe_branch}")
     os.makedirs(worktree_path, exist_ok=True)
 
     if not quiet:
