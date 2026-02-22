@@ -145,24 +145,22 @@ def get_worktrees():
     return worktrees
 
 
-def find_ms_worktree(branch):
+def get_ms_worktree():
+    parent_dir = get_worktree_parent_dir()
+    repo_name = get_repo_name()
+    worktree_path = os.path.join(parent_dir, f".{repo_name}-ms")
     for wt in get_worktrees():
-        if wt.get("branch") == f"refs/heads/{branch}":
+        if wt.get("path") == worktree_path:
             return wt
     return None
 
 
 def find_pending_ms_worktree():
-    parent_dir = get_worktree_parent_dir()
-    repo_name = get_repo_name()
-    expected_prefix = os.path.join(parent_dir, f".{repo_name}-")
-    for wt in get_worktrees():
-        path = wt.get("path", "")
-        if path.startswith(expected_prefix):
-            if is_merge_in_progress(path):
-                branch = wt.get("branch", "")
-                if branch.startswith("refs/heads/"):
-                    return branch.replace("refs/heads/", ""), wt
+    wt = get_ms_worktree()
+    if wt and is_merge_in_progress(wt["path"]):
+        branch = wt.get("branch", "")
+        if branch.startswith("refs/heads/"):
+            return branch.replace("refs/heads/", ""), wt
     return None, None
 
 
@@ -176,7 +174,11 @@ def is_merge_in_progress(worktree_path):
 def cmd_ms(args):
     quiet = args.quiet
     continue_merge = args.cont
+    abort = args.abort
     branch = args.branch
+
+    if abort:
+        return cmd_ms_abort(quiet)
 
     if continue_merge:
         if not branch:
@@ -188,6 +190,15 @@ def cmd_ms(args):
 
     if not branch:
         print("Error: branch name required", file=sys.stderr)
+        return 1
+
+    pending_branch, pending_wt = find_pending_ms_worktree()
+    if pending_wt:
+        print(
+            f"Error: pending merge for '{pending_branch}' at {pending_wt['path']}",
+            file=sys.stderr,
+        )
+        print("Run 'chest ms --continue' or 'chest ms --abort'", file=sys.stderr)
         return 1
 
     if has_uncommitted_changes():
@@ -229,28 +240,34 @@ def cmd_ms(args):
             )
             return 1
 
-    existing_wt = find_ms_worktree(branch)
-    if existing_wt:
-        print(
-            f"Error: worktree already exists for '{branch}' at {existing_wt['path']}",
-            file=sys.stderr,
-        )
-        return 1
-
-    safe_branch = branch.replace("/", "-")
     parent_dir = get_worktree_parent_dir()
     repo_name = get_repo_name()
-    worktree_path = os.path.join(parent_dir, f".{repo_name}-{safe_branch}")
-    os.makedirs(worktree_path, exist_ok=True)
+    worktree_path = os.path.join(parent_dir, f".{repo_name}-ms")
 
-    if not quiet:
-        print(f"Creating worktree at {worktree_path}...", file=sys.stderr)
-
-    result = run(["git", "worktree", "add", worktree_path, branch])
-    if result.returncode != 0:
-        print(f"Error creating worktree: {result.stderr.strip()}", file=sys.stderr)
-        os.rmdir(worktree_path)
-        return 1
+    existing_wt = get_ms_worktree()
+    if existing_wt:
+        if not quiet:
+            print(f"Reusing worktree at {worktree_path}...", file=sys.stderr)
+        result = subprocess.run(
+            ["git", "checkout", branch],
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(
+                f"Error checking out branch: {result.stderr.strip()}", file=sys.stderr
+            )
+            return 1
+    else:
+        os.makedirs(worktree_path, exist_ok=True)
+        if not quiet:
+            print(f"Creating worktree at {worktree_path}...", file=sys.stderr)
+        result = run(["git", "worktree", "add", worktree_path, branch])
+        if result.returncode != 0:
+            print(f"Error creating worktree: {result.stderr.strip()}", file=sys.stderr)
+            os.rmdir(worktree_path)
+            return 1
 
     if not quiet:
         print(f"Merging {default_branch} into {branch}...", file=sys.stderr)
@@ -268,10 +285,12 @@ def cmd_ms(args):
         print("Resolve conflicts, then run: chest ms --continue", file=sys.stderr)
         return 1
 
-    result = run(["git", "worktree", "remove", worktree_path])
-    if result.returncode != 0:
-        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
-        return 1
+    result = subprocess.run(
+        ["git", "checkout", "--detach", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
 
     result = run(["git", "checkout", branch])
     if result.returncode != 0:
@@ -283,9 +302,9 @@ def cmd_ms(args):
 
 
 def cmd_ms_continue(branch, quiet):
-    worktree = find_ms_worktree(branch)
+    worktree = get_ms_worktree()
     if not worktree:
-        print(f"Error: no worktree found for branch '{branch}'", file=sys.stderr)
+        print("Error: no worktree found", file=sys.stderr)
         return 1
 
     worktree_path = worktree["path"]
@@ -311,12 +330,14 @@ def cmd_ms_continue(branch, quiet):
             return 1
 
     if not quiet:
-        print("Removing worktree...", file=sys.stderr)
+        print("Detaching worktree...", file=sys.stderr)
 
-    result = run(["git", "worktree", "remove", worktree_path])
-    if result.returncode != 0:
-        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
-        return 1
+    subprocess.run(
+        ["git", "checkout", "--detach", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
 
     result = run(["git", "checkout", branch])
     if result.returncode != 0:
@@ -324,6 +345,36 @@ def cmd_ms_continue(branch, quiet):
         return 1
 
     console.print(f"[green]Switched to refreshed branch '{branch}'[/green]")
+    return 0
+
+
+def cmd_ms_abort(quiet):
+    worktree = get_ms_worktree()
+    if not worktree:
+        print("Error: no worktree found", file=sys.stderr)
+        return 1
+
+    worktree_path = worktree["path"]
+
+    if not quiet:
+        print("Aborting merge...", file=sys.stderr)
+
+    subprocess.run(
+        ["git", "merge", "--abort"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if not quiet:
+        print("Removing worktree...", file=sys.stderr)
+
+    result = run(["git", "worktree", "remove", worktree_path])
+    if result.returncode != 0:
+        print(f"Error removing worktree: {result.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    print("Aborted.", file=sys.stderr)
     return 0
 
 
@@ -468,6 +519,11 @@ def main():
         dest="cont",
         action="store_true",
         help="continue after resolving conflicts",
+    )
+    ms_parser.add_argument(
+        "--abort",
+        action="store_true",
+        help="abort pending merge and remove worktree",
     )
     ms_parser.set_defaults(func=cmd_ms)
 
