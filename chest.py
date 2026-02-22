@@ -7,7 +7,7 @@ import sys
 
 from rich.console import Console
 
-console = Console()
+console = Console(highlight=False)
 
 
 def run(cmd, capture=True):
