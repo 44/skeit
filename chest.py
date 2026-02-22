@@ -66,7 +66,6 @@ def get_current_branch():
 def cmd_fff(args):
     quiet = args.quiet
 
-    current = get_current_branch()
     branches = get_local_branches()
 
     if not branches:
