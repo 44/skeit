@@ -1,0 +1,13 @@
+[project]
+name = "chest"
+version = "0.1.0"
+description = "Git helper tools"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+chest = "chest:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
