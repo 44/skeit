@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""chest: git helper tools"""
 
 import argparse
 import os
@@ -199,7 +198,7 @@ def cmd_ms(args):
             f"Error: pending merge for '{pending_branch}' at {pending_wt['path']}",
             file=sys.stderr,
         )
-        print("Run 'chest ms --continue' or 'chest ms --abort'", file=sys.stderr)
+        print("Run 'skeit ms --continue' or 'skeit ms --abort'", file=sys.stderr)
         return 1
 
     if has_uncommitted_changes():
@@ -283,7 +282,7 @@ def cmd_ms(args):
     if result.returncode != 0:
         console_stderr.print("[red]Merge conflict detected[/red]")
         print(f"Worktree left at: {worktree_path}", file=sys.stderr)
-        print("Resolve conflicts, then run: chest ms --continue", file=sys.stderr)
+        print("Resolve conflicts, then run: skeit ms --continue", file=sys.stderr)
         return 1
 
     result = subprocess.run(
@@ -463,7 +462,7 @@ def cmd_pff(args):
     return 0
 
 
-REPO_URL = "git+https://github.com/44/chest"
+REPO_URL = "git+https://github.com/44/skeit"
 
 
 def cmd_install(args):
@@ -474,7 +473,7 @@ def cmd_install(args):
 
     commands = ["fff", "pff", "ms"]
     for cmd in commands:
-        alias = f"!uvx --from {REPO_URL} chest {cmd}"
+        alias = f"!uvx --from {REPO_URL} skeit {cmd}"
         result = run(["git", "config", "--global", f"alias.{cmd}", alias])
         if result.returncode != 0:
             print(

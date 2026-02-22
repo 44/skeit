@@ -1,12 +1,12 @@
 [project]
-name = "chest"
+name = "skeit"
 version = "0.1.0"
-description = "Git helper tools"
+description = "Collection of tools/scripts"
 requires-python = ">=3.10"
 dependencies = ["rich"]
 
 [project.scripts]
-chest = "chest:main"
+skeit = "skeit:main"
 
 [build-system]
 requires = ["hatchling"]
