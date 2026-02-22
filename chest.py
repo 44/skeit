@@ -10,6 +10,7 @@ import tempfile
 from rich.console import Console
 
 console = Console(highlight=False)
+console_stderr = Console(file=sys.stderr, highlight=False)
 
 
 def run(cmd, capture=True):
@@ -280,7 +281,7 @@ def cmd_ms(args):
     )
 
     if result.returncode != 0:
-        print("[red]Merge conflict detected[/red]", file=sys.stderr)
+        console_stderr.print("[red]Merge conflict detected[/red]")
         print(f"Worktree left at: {worktree_path}", file=sys.stderr)
         print("Resolve conflicts, then run: chest ms --continue", file=sys.stderr)
         return 1
