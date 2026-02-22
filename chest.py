@@ -121,6 +121,18 @@ def find_ms_worktree(branch):
     return None
 
 
+def find_pending_ms_worktree():
+    tmpdir = tempfile.gettempdir()
+    for wt in get_worktrees():
+        path = wt.get("path", "")
+        if path.startswith(tmpdir) and "chest-ms-" in path:
+            if is_merge_in_progress(path):
+                branch = wt.get("branch", "")
+                if branch.startswith("refs/heads/"):
+                    return branch.replace("refs/heads/", ""), wt
+    return None, None
+
+
 def is_merge_in_progress(worktree_path):
     merge_head = os.path.join(worktree_path, ".git", "MERGE_HEAD")
     if os.path.exists(merge_head):
@@ -135,8 +147,10 @@ def cmd_ms(args):
 
     if continue_merge:
         if not branch:
-            print("Error: branch name required with --continue", file=sys.stderr)
-            return 1
+            branch, worktree = find_pending_ms_worktree()
+            if not branch:
+                print("Error: no pending merge found", file=sys.stderr)
+                return 1
         return cmd_ms_continue(branch, quiet)
 
     if not branch:
@@ -199,10 +213,7 @@ def cmd_ms(args):
     if result.returncode != 0:
         print("[red]Merge conflict detected[/red]", file=sys.stderr)
         print(f"Worktree left at: {worktree_path}", file=sys.stderr)
-        print(
-            f"Resolve conflicts, then run: chest ms --continue {branch}",
-            file=sys.stderr,
-        )
+        print("Resolve conflicts, then run: chest ms --continue", file=sys.stderr)
         return 1
 
     result = run(["git", "worktree", "remove", worktree_path])
