@@ -69,6 +69,18 @@ def get_current_branch():
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def branch_exists_local(branch):
+    result = run(["git", "rev-parse", "--verify", f"refs/heads/{branch}"])
+    return result.returncode == 0
+
+
+def find_remote_branch(branch):
+    result = run(["git", "rev-parse", "--verify", f"refs/remotes/origin/{branch}"])
+    if result.returncode == 0:
+        return f"origin/{branch}"
+    return None
+
+
 def has_uncommitted_changes():
     result = run(["git", "status", "--porcelain"])
     if result.returncode != 0:
@@ -176,10 +188,25 @@ def cmd_ms(args):
         print(f"Error: already on branch '{branch}'", file=sys.stderr)
         return 1
 
-    result = run(["git", "rev-parse", "--verify", f"refs/heads/{branch}"])
-    if result.returncode != 0:
-        print(f"Error: branch '{branch}' does not exist", file=sys.stderr)
-        return 1
+    if not branch_exists_local(branch):
+        remote_branch = find_remote_branch(branch)
+        if not remote_branch:
+            print(
+                f"Error: branch '{branch}' does not exist locally or on origin",
+                file=sys.stderr,
+            )
+            return 1
+        if not quiet:
+            print(
+                f"Creating local branch '{branch}' tracking '{remote_branch}'...",
+                file=sys.stderr,
+            )
+        result = run(["git", "branch", "--track", branch, remote_branch])
+        if result.returncode != 0:
+            print(
+                f"Error creating local branch: {result.stderr.strip()}", file=sys.stderr
+            )
+            return 1
 
     existing_wt = find_ms_worktree(branch)
     if existing_wt:
