@@ -220,25 +220,22 @@ def detect_unique_commits(merged_branch, party_branches):
     return get_branch_commits(merged_branch, party_branches)
 
 
-def build_merged_view_in_worktree(name, branches):
+def build_merged_view_in_worktree(branches):
     if not branches:
-        return False
+        return None
 
     worktree = get_party_worktree()
     if not worktree:
-        return False
+        return None
 
     worktree_path = worktree["path"]
-    party_branch = get_party_branch_name(name)
 
-    result = subprocess.run(
-        ["git", "checkout", "-B", party_branch, branches[0]],
+    subprocess.run(
+        ["git", "checkout", "--detach", branches[0]],
         cwd=worktree_path,
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        return False
 
     for branch in branches[1:]:
         result = subprocess.run(
@@ -248,9 +245,18 @@ def build_merged_view_in_worktree(name, branches):
             text=True,
         )
         if result.returncode != 0:
-            return False
+            return None
 
-    return True
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+
+    return result.stdout.strip()
 
 
 def rebuild_merged_view(name, branches):
@@ -266,41 +272,11 @@ def rebuild_merged_view(name, branches):
         if not worktree:
             return False
 
-    worktree_path = worktree["path"]
-
-    subprocess.run(
-        ["git", "checkout", "--detach", "HEAD"],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
-
-    result = subprocess.run(
-        ["git", "checkout", "-B", party_branch, branches[0]],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
+    commit_hash = build_merged_view_in_worktree(branches)
+    if not commit_hash:
         return False
 
-    for branch in branches[1:]:
-        result = subprocess.run(
-            ["git", "merge", branch, "--no-edit"],
-            cwd=worktree_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            return False
-
-    subprocess.run(
-        ["git", "checkout", "--detach", "HEAD"],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
-
+    run(["git", "branch", "-f", party_branch, commit_hash])
     return True
 
 
@@ -370,17 +346,8 @@ def cmd_party_start(args):
         delete_party_config(name)
         return 1
 
-    worktree_path = worktree["path"]
-
-    subprocess.run(
-        ["git", "checkout", "-B", party_branch, current],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
-
-    success = build_merged_view_in_worktree(name, all_branches)
-    if not success:
+    commit_hash = build_merged_view_in_worktree(all_branches)
+    if not commit_hash:
         console_stderr.print(
             "[red]Error: failed to build merged view. Check for merge conflicts.[/red]"
         )
@@ -389,12 +356,7 @@ def cmd_party_start(args):
         delete_party_config(name)
         return 1
 
-    subprocess.run(
-        ["git", "checkout", "--detach", "HEAD"],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
+    run(["git", "branch", party_branch, commit_hash])
 
     if not checkout_party_branch(name):
         console_stderr.print("[red]Error: failed to checkout party branch.[/red]")
