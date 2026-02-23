@@ -458,6 +458,19 @@ def cmd_party_move(args):
     save_party_config(active, pending="move", pending_target=target_branch)
 
     result = subprocess.run(
+        ["git", "checkout", target_branch],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        console_stderr.print(
+            f"[red]Error checking out {target_branch} in worktree[/red]"
+        )
+        clear_pending_state(active)
+        return 1
+
+    result = subprocess.run(
         ["git", "cherry-pick", commit],
         cwd=worktree_path,
         capture_output=True,
@@ -472,8 +485,19 @@ def cmd_party_move(args):
 
     clear_pending_state(active)
 
-    sync_args = type("Args", (), {"quiet": quiet})()
-    return cmd_party_sync(sync_args)
+    if not quiet:
+        console_stderr.print("Rebuilding merged view...")
+
+    if not rebuild_merged_view(active, config["branches"]):
+        console_stderr.print("[red]Error: failed to rebuild merged view.[/red]")
+        return 1
+
+    if not checkout_party_branch(active):
+        console_stderr.print("[red]Error: failed to checkout party branch.[/red]")
+        return 1
+
+    console.print(f"[green]Moved commit to '{target_branch}'[/green]")
+    return 0
 
 
 def cmd_party_sync(args):
