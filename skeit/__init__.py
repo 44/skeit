@@ -467,24 +467,120 @@ def cmd_pff(args):
 REPO_URL = "git+https://github.com/44/skeit"
 
 
-def cmd_install(args):
+def cmd_alias(args):
     quiet = args.quiet
+    offline = args.offline
 
     if not quiet:
-        print(f"Installing aliases from {REPO_URL}", file=sys.stderr)
+        print(f"Configuring aliases from {REPO_URL}", file=sys.stderr)
 
-    commands = ["fff", "pff", "ms", "party"]
+    commands = ["fff", "pff", "ms", "party", "wc"]
     for cmd in commands:
-        alias = f"!uvx --from {REPO_URL} skeit {cmd}"
+        if offline:
+            alias = f"!uvx --offline skeit {cmd}"
+        else:
+            alias = f"!uvx --from {REPO_URL} skeit {cmd}"
         result = run(["git", "config", "--global", f"alias.{cmd}", alias])
         if result.returncode != 0:
             print(
-                f"Failed to install alias.{cmd}: {result.stderr.strip()}",
+                f"Failed to configure alias.{cmd}: {result.stderr.strip()}",
                 file=sys.stderr,
             )
             return 1
         if not quiet:
-            print(f"Installed: git {cmd}", file=sys.stderr)
+            print(f"Configured: git {cmd}", file=sys.stderr)
+
+    return 0
+
+
+def cmd_wc(args):
+    diff_spec = args.diff_spec
+
+    if not diff_spec:
+        default_branch = get_default_branch()
+        if not default_branch:
+            print(
+                "Error: could not determine default branch (main/master)",
+                file=sys.stderr,
+            )
+            return 1
+        diff_spec = f"origin/{default_branch}...HEAD"
+
+    name_status_result = run(["git", "diff", "--name-status", diff_spec])
+    if name_status_result.returncode != 0:
+        print(
+            f"Error running git diff --name-status: {name_status_result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    numstat_result = run(["git", "diff", "--numstat", diff_spec])
+    if numstat_result.returncode != 0:
+        print(
+            f"Error running git diff --numstat: {numstat_result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return 1
+
+    name_status_lines = (
+        name_status_result.stdout.strip().split("\n")
+        if name_status_result.stdout.strip()
+        else []
+    )
+    numstat_lines = (
+        numstat_result.stdout.strip().split("\n")
+        if numstat_result.stdout.strip()
+        else []
+    )
+
+    status_map = {
+        "A": "[green]A[/green]",
+        "D": "[red]D[/red]",
+        "M": "[yellow]M[/yellow]",
+        "R": "[cyan]R[/cyan]",
+        "C": "[blue]C[/blue]",
+    }
+
+    total_added = 0
+    total_deleted = 0
+    total_files = 0
+    for i, name_line in enumerate(name_status_lines):
+        if not name_line:
+            continue
+        parts = name_line.split(None, 1)
+        if len(parts) < 2:
+            continue
+        status_code = parts[0]
+        filename = parts[1]
+
+        added = "0"
+        deleted = "0"
+        if i < len(numstat_lines) and numstat_lines[i]:
+            num_parts = numstat_lines[i].split("\t")
+            if len(num_parts) >= 2:
+                added = num_parts[0]
+                deleted = num_parts[1]
+
+        if added != "-":
+            total_added += int(added)
+        if deleted != "-":
+            total_deleted += int(deleted)
+        total_files += 1
+
+        colored_status = status_map.get(status_code, status_code)
+
+        counts = []
+        if added != "-" and added != "0":
+            counts.append(f"[green]+{added}[/green]")
+        if deleted != "-" and deleted != "0":
+            counts.append(f"[red]-{deleted}[/red]")
+
+        counts_str = " ".join(counts)
+        console.print(f"{colored_status}  {filename}  {counts_str}")
+
+    console.print(
+        f"\n{total_files} files changed [green]+{total_added}[/green] [red]-{total_deleted}[/red]"
+    )
 
     return 0
 
@@ -508,10 +604,13 @@ def main():
     )
     pff_parser.set_defaults(func=cmd_pff)
 
-    install_parser = subparsers.add_parser(
-        "install", help="install git aliases globally via uvx", parents=[common]
+    alias_parser = subparsers.add_parser(
+        "alias", help="configure git aliases globally via uvx", parents=[common]
     )
-    install_parser.set_defaults(func=cmd_install)
+    alias_parser.add_argument(
+        "--offline", action="store_true", help="use uvx --offline"
+    )
+    alias_parser.set_defaults(func=cmd_alias)
 
     ms_parser = subparsers.add_parser(
         "ms", help="merge and switch branch via worktree", parents=[common]
@@ -588,6 +687,16 @@ def main():
         "abort", help="abort pending operation", parents=[common]
     )
     party_abort.set_defaults(func=cmd_party)
+
+    wc_parser = subparsers.add_parser(
+        "wc",
+        help="show combined git diff --name-status and --numstat",
+        parents=[common],
+    )
+    wc_parser.add_argument(
+        "diff_spec", nargs="?", help="diff specification (e.g., origin/main...HEAD)"
+    )
+    wc_parser.set_defaults(func=cmd_wc)
 
     args = parser.parse_args()
     return args.func(args)
