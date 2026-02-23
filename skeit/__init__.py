@@ -8,7 +8,7 @@ import tempfile
 
 from rich.console import Console
 
-from party import cmd_party
+from .party import cmd_party
 
 console = Console(highlight=False)
 console_stderr = Console(file=sys.stderr, highlight=False)
