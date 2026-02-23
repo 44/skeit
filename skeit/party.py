@@ -350,7 +350,6 @@ def cmd_party_start(args):
         console_stderr.print(
             "[red]Error: failed to build merged view. Check for merge conflicts.[/red]"
         )
-        remove_party_worktree()
         set_active_party(None)
         delete_party_config(name)
         return 1
@@ -359,7 +358,6 @@ def cmd_party_start(args):
 
     if not checkout_party_branch(name):
         console_stderr.print("[red]Error: failed to checkout party branch.[/red]")
-        remove_party_worktree()
         set_active_party(None)
         delete_party_config(name)
         return 1
@@ -619,7 +617,6 @@ def cmd_party_finish(args):
         return 1
 
     delete_party_branch(active)
-    remove_party_worktree()
     delete_party_config(active)
     set_active_party(None)
 
