@@ -94,6 +94,7 @@ def create_party_worktree(branch=None):
         result = run(["git", "worktree", "add", "--detach", worktree_path, "HEAD"])
 
     if result.returncode != 0:
+        print(f"git worktree add failed: {result.stderr}")
         return None
 
     return get_party_worktree()
