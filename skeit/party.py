@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -85,6 +86,9 @@ def create_party_worktree(branch=None):
     if existing:
         return existing
 
+    if os.path.exists(worktree_path):
+        shutil.rmtree(worktree_path)
+
     os.makedirs(worktree_path, exist_ok=True)
 
     if branch:
@@ -93,7 +97,7 @@ def create_party_worktree(branch=None):
         result = run(["git", "worktree", "add", "--detach", worktree_path, "HEAD"])
 
     if result.returncode != 0:
-        os.rmdir(worktree_path)
+        shutil.rmtree(worktree_path, ignore_errors=True)
         return None
 
     return get_party_worktree()
@@ -103,6 +107,10 @@ def remove_party_worktree():
     wt = get_party_worktree()
     if wt:
         run(["git", "worktree", "remove", wt["path"], "--force"])
+        return True
+    worktree_path = get_party_worktree_path()
+    if os.path.exists(worktree_path):
+        shutil.rmtree(worktree_path)
         return True
     return False
 
@@ -197,11 +205,11 @@ def get_branch_commits(branch, exclude_branches=None):
     if exclude_branches is None:
         exclude_branches = []
 
-    exclude_args = []
+    args = ["git", "log", "--no-merges", "--format=%H %s", branch]
     for eb in exclude_branches:
-        exclude_args.extend(["--not", eb])
+        args.append(f"^{eb}")
 
-    result = run(["git", "log", "--no-merges", "--format=%H %s", branch] + exclude_args)
+    result = run(args)
     if result.returncode != 0:
         return []
 
