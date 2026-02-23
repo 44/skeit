@@ -198,22 +198,19 @@ git checkout main
 git branch -D party/myparty
 ```
 
-### Step 4: Remove worktree
-```bash
-git worktree remove /repo/../.repo-party --force
-```
-
-### Step 5: Clean config
+### Step 4: Clean config
 ```bash
 git config --local --unset party.active
 git config --local --unset party.myparty.default
 git config --local --unset party.myparty.branches
 ```
 
+**Note:** The worktree is kept for reuse by future parties.
+
 **Final state:**
 ```
 Main worktree: main (contains all work commits)
-Party worktree: deleted
+Party worktree: still exists at /repo/../.repo-party (detached HEAD, reused by next party)
 
 main: main-1 → main-2 → main-3 → work-1 → work-2
 feature1: unchanged
@@ -266,6 +263,7 @@ The commit is now on feature1, so rebuild will include it via feature1.
 3. **Work happens in main worktree** on `party/<name>` branch
 4. **Unique commits** = commits on party branch not reachable from any party member branch
 5. **Sync moves unique commits to default branch**, then rebuilds merged view
+6. **Worktree persists between parties** - reused for faster startup, `git worktree prune` cleans stale refs
 
 ---
 
@@ -273,9 +271,9 @@ The commit is now on feature1, so rebuild will include it via feature1.
 
 | Command | Location | Git Commands |
 |---------|----------|--------------|
-| `party start` | main | `config`, `worktree add`, `branch`, `checkout` |
+| `party start` | main | `worktree prune`, `worktree add`, `branch`, `checkout` |
 | `party start` | worktree | `checkout --detach`, `merge` |
 | `party sync` | worktree | `checkout`, `cherry-pick`, `checkout --detach`, `merge` |
 | `party sync` | main | `branch -f`, `checkout` |
-| `party finish` | main | `checkout`, `branch -D`, `worktree remove`, `config --unset` |
+| `party finish` | main | `checkout`, `branch -D`, `config --unset` |
 | `party status` | main | `config`, `log` |
