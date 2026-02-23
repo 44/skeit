@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import shutil
 import subprocess
 import sys
 
@@ -81,15 +80,13 @@ def get_party_worktree():
 
 
 def create_party_worktree(branch=None):
-    worktree_path = get_party_worktree_path()
     existing = get_party_worktree()
     if existing:
         return existing
 
-    if os.path.exists(worktree_path):
-        shutil.rmtree(worktree_path)
+    run(["git", "worktree", "prune"])
 
-    os.makedirs(worktree_path, exist_ok=True)
+    worktree_path = get_party_worktree_path()
 
     if branch:
         result = run(["git", "worktree", "add", worktree_path, branch])
@@ -97,7 +94,6 @@ def create_party_worktree(branch=None):
         result = run(["git", "worktree", "add", "--detach", worktree_path, "HEAD"])
 
     if result.returncode != 0:
-        shutil.rmtree(worktree_path, ignore_errors=True)
         return None
 
     return get_party_worktree()
@@ -107,12 +103,7 @@ def remove_party_worktree():
     wt = get_party_worktree()
     if wt:
         run(["git", "worktree", "remove", wt["path"], "--force"])
-        return True
-    worktree_path = get_party_worktree_path()
-    if os.path.exists(worktree_path):
-        shutil.rmtree(worktree_path)
-        return True
-    return False
+    run(["git", "worktree", "prune"])
 
 
 def get_active_party():
