@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -68,13 +69,13 @@ def get_worktrees():
 def get_party_worktree_path():
     parent_dir = get_worktree_parent_dir()
     repo_name = get_repo_name()
-    return os.path.join(parent_dir, f".{repo_name}-party")
+    return Path(parent_dir) / f".{repo_name}-party"
 
 
 def get_party_worktree():
     worktree_path = get_party_worktree_path()
     for wt in get_worktrees():
-        if wt.get("path") == worktree_path:
+        if Path(wt.get("path", "")) == worktree_path:
             return wt
     return None
 
@@ -86,7 +87,7 @@ def create_party_worktree(branch=None):
 
     run(["git", "worktree", "prune"])
 
-    worktree_path = get_party_worktree_path()
+    worktree_path = str(get_party_worktree_path())
 
     if branch:
         result = run(["git", "worktree", "add", worktree_path, branch])
