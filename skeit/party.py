@@ -90,7 +90,7 @@ def create_party_worktree(branch=None):
     if branch:
         result = run(["git", "worktree", "add", worktree_path, branch])
     else:
-        result = run(["git", "worktree", "add", worktree_path, "--detached"])
+        result = run(["git", "worktree", "add", "--detach", worktree_path, "HEAD"])
 
     if result.returncode != 0:
         os.rmdir(worktree_path)
@@ -201,7 +201,7 @@ def get_branch_commits(branch, exclude_branches=None):
     for eb in exclude_branches:
         exclude_args.extend(["--not", eb])
 
-    result = run(["git", "log", "--format=%H %s", branch] + exclude_args)
+    result = run(["git", "log", "--no-merges", "--format=%H %s", branch] + exclude_args)
     if result.returncode != 0:
         return []
 
@@ -254,6 +254,12 @@ def build_merged_view_in_worktree(name, branches):
 
 
 def rebuild_merged_view(name, branches):
+    party_branch = get_party_branch_name(name)
+
+    current = get_current_branch()
+    if current == party_branch:
+        run(["git", "checkout", "--detach", "HEAD"])
+
     worktree = get_party_worktree()
     if not worktree:
         worktree = create_party_worktree()
@@ -269,7 +275,33 @@ def rebuild_merged_view(name, branches):
         text=True,
     )
 
-    return build_merged_view_in_worktree(name, branches)
+    result = subprocess.run(
+        ["git", "checkout", "-B", party_branch, branches[0]],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+
+    for branch in branches[1:]:
+        result = subprocess.run(
+            ["git", "merge", branch, "--no-edit"],
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False
+
+    subprocess.run(
+        ["git", "checkout", "--detach", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+
+    return True
 
 
 def checkout_party_branch(name):
@@ -356,6 +388,13 @@ def cmd_party_start(args):
         set_active_party(None)
         delete_party_config(name)
         return 1
+
+    subprocess.run(
+        ["git", "checkout", "--detach", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
 
     if not checkout_party_branch(name):
         console_stderr.print("[red]Error: failed to checkout party branch.[/red]")
