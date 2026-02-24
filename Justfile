@@ -1,5 +1,5 @@
-lint:
-	uvx ruff check .
+lint *ARGS:
+	uvx ruff check . {{ ARGS }}
 
 format:
 	uvx ruff format .
