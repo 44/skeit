@@ -53,8 +53,6 @@ def format_status(ahead, behind):
 
 
 def fast_forward(branch, upstream):
-    from . import get_current_branch
-
     if branch == get_current_branch():
         return run(["git", "merge", "--ff-only", upstream])
     else:
