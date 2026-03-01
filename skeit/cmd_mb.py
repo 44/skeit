@@ -217,7 +217,6 @@ def cmd_mb_abort(quiet):
 
 
 def find_pending_mb_branch():
-    parent_dir = get_worktree_parent_dir()
     repo_name = get_repo_name()
     result = run(["git", "worktree", "list", "--porcelain"])
     if result.returncode != 0:
