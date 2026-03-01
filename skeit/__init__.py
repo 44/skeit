@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+__version__ = "0.1.0"
+
 import argparse
 import sys
 
@@ -19,7 +21,13 @@ def main():
         "-q", "--quiet", action="store_true", help="Suppress progress messages"
     )
 
-    parser = argparse.ArgumentParser(description="git helper tools", parents=[common])
+    parser = argparse.ArgumentParser(
+        description="git helper tools",
+        parents=[common],
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     fff_parser = subparsers.add_parser(

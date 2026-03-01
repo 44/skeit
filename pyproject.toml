@@ -1,12 +1,15 @@
 [project]
 name = "skeit"
-version = "0.1.0"
 description = "Collection of tools/scripts"
 requires-python = ">=3.10"
 dependencies = ["rich"]
+dynamic = ["version"]
 
 [project.scripts]
 skeit = "skeit:main"
+
+[tool.hatch.version]
+path = "skeit/__init__.py"
 
 [build-system]
 requires = ["hatchling"]
