@@ -7,6 +7,7 @@ from .party import cmd_party
 
 from .cmd_alias import cmd_alias
 from .cmd_fff import cmd_fff
+from .cmd_mb import cmd_mb
 from .cmd_ms import cmd_ms
 from .cmd_pff import cmd_pff
 from .cmd_wc import cmd_wc
@@ -56,6 +57,26 @@ def main():
         help="abort pending merge and detach worktree",
     )
     ms_parser.set_defaults(func=cmd_ms)
+
+    mb_parser = subparsers.add_parser(
+        "mb",
+        help="merge origin default branch into branch via worktree",
+        parents=[common],
+    )
+    mb_parser.add_argument("branch", nargs="?", help="branch to merge into")
+    mb_parser.add_argument(
+        "-c",
+        "--continue",
+        dest="cont",
+        action="store_true",
+        help="continue after resolving conflicts",
+    )
+    mb_parser.add_argument(
+        "--abort",
+        action="store_true",
+        help="abort pending merge and detach worktree",
+    )
+    mb_parser.set_defaults(func=cmd_mb)
 
     party_parser = subparsers.add_parser(
         "party", help="party mode for merging multiple branches", parents=[common]

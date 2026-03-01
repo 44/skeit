@@ -12,7 +12,7 @@ def cmd_alias(args):
     if not quiet:
         print(f"Configuring aliases from {REPO_URL}", file=sys.stderr)
 
-    commands = ["fff", "pff", "ms", "party", "wc"]
+    commands = ["fff", "mb", "ms", "party", "pff", "wc"]
     for cmd in commands:
         if offline:
             alias = f"!uvx --offline skeit {cmd}"
